@@ -6,7 +6,8 @@
 import dash
 from dash import html, dcc, Input, Output, State
 import dash_canvas
-from dash_canvas.components import DashCanvas
+#from dash_canvas.components import DashCanvas
+from dash_canvas import DashCanvas
 import base64
 import io
 from PIL import Image
@@ -178,7 +179,8 @@ def update_output(n_clicks, list_of_contents, list_of_names, threshold_value, js
 import dash
 from dash import html, dcc, Input, Output, State
 import dash_canvas
-from dash_canvas.components import DashCanvas
+#from dash_canvas.components import DashCanvas
+from dash_canvas import DashCanvas
 import base64
 import io
 from PIL import Image
