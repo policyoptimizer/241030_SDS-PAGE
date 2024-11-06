@@ -1,4 +1,5 @@
-# 에러나기 마지막 버전 빽업
+# 현재까지 Best
+# bb 동일하게 해주는 스케일러 없음
 
 import dash
 from dash import html, dcc, Input, Output, State
@@ -10,6 +11,7 @@ import cv2
 import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
+import datetime
 
 # Dash 앱 인스턴스 주석 처리
 # app = dash.Dash(__name__)
@@ -23,7 +25,7 @@ app.layout = html.Div([
             html.A('파일 선택')
         ]),
         style={
-            'width': '90%',  # 업로드 영역 가로 길이 확대
+            'width': '90%',  # 업로드 영역 가로 길이 유지
             'height': '60px',
             'lineHeight': '60px',
             'borderWidth': '1px',
@@ -37,6 +39,8 @@ app.layout = html.Div([
     html.Div(id='output-image-upload'),
     html.Div(id='slider-container', style={'display': 'none'}),
     html.Button('실행', id='analyze-button', n_clicks=0),
+    # html.Button('보고서 다운로드', id='download-button', n_clicks=0, style={'display': 'none'}),
+    # dcc.Download(id='download-image'),
     html.Div(id='analysis-results'),
 ])
 
@@ -77,8 +81,8 @@ def update_output(contents, filename):
             margin=dict(l=0, r=0, t=30, b=0),
             xaxis=dict(visible=False),
             yaxis=dict(visible=False, scaleanchor='x', scaleratio=1),
-            width=1200,  # 그래프 가로 길이 확대
-            height=img_array.shape[0] * (1200 / img_array.shape[1]),  # 이미지 비율 유지
+            width=1200,  # 그래프 가로 길이 유지
+            height=img_array.shape[0] * (800 / img_array.shape[1]),  # 이미지 높이 조절
         )
         return html.Div([
             html.H5(filename),
@@ -86,7 +90,7 @@ def update_output(contents, filename):
                 id='graph',
                 figure=fig,
                 config={'modeBarButtonsToAdd': ['drawrect', 'eraseshape']},
-                style={'width': '90%', 'margin': '0 auto'}  # 그래프 가로 길이 확대
+                style={'width': '90%', 'margin': '0 auto'}
             ),
             html.Div([
                 html.Label('BB 너비 조정'),
@@ -188,7 +192,6 @@ def analyze_image(n_clicks, fig, contents):
             min_val = np.min(roi)
             max_val = np.max(roi)
             intden = np.sum(roi)
-            rawintden = intden  # 동일하게 처리
             peak_name = 'Marker' if i == 0 else f'Peak {i}'
             results.append({
                 '피크': peak_name,
@@ -197,7 +200,7 @@ def analyze_image(n_clicks, fig, contents):
                 'Min': round(min_val, 1),
                 'Max': round(max_val, 1),
                 'IntDen': intden,
-                'RawIntDen': rawintden
+                'Marker 대비 %': 0  # 일단 0으로 초기화
             })
         if len(results) == 0:
             return html.Div(['관심 영역을 지정하세요.'])
@@ -206,19 +209,17 @@ def analyze_image(n_clicks, fig, contents):
         marker_intden = df.loc[0, 'IntDen']
         df['Marker 대비 %'] = round((df['IntDen'] / marker_intden) * 100, 1)
         # 결과 테이블
-        table = dcc.Graph(
-            figure=go.Figure(
-                data=[go.Table(
-                    header=dict(values=list(df.columns)),
-                    cells=dict(values=[df[c] for c in df.columns])
-                )],
-                layout=go.Layout(title='분석 결과')
-            )
+        table_fig = go.Figure(
+            data=[go.Table(
+                header=dict(values=list(df.columns)),
+                cells=dict(values=[df[c] for c in df.columns])
+            )],
+            layout=go.Layout(title='분석 결과')
         )
+        table = dcc.Graph(figure=table_fig)
         # 그래프
-        graph = dcc.Graph(
-            figure=px.bar(df, x='피크', y='IntDen', title='IntDen 값 그래프')
-        )
+        graph_fig = px.bar(df, x='피크', y='IntDen', title='IntDen 값 그래프')
+        graph = dcc.Graph(figure=graph_fig)
         return [table, graph]
     return ''
 
