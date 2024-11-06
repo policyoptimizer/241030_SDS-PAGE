@@ -11,6 +11,7 @@ import cv2
 import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
+import zipfile
 import datetime
 
 # Dash 앱 인스턴스 주석 처리
@@ -39,8 +40,8 @@ app.layout = html.Div([
     html.Div(id='output-image-upload'),
     html.Div(id='slider-container', style={'display': 'none'}),
     html.Button('실행', id='analyze-button', n_clicks=0),
-    # html.Button('보고서 다운로드', id='download-button', n_clicks=0, style={'display': 'none'}),
-    # dcc.Download(id='download-image'),
+    html.Button('결과 다운로드', id='download-button', n_clicks=0, style={'display': 'none'}),
+    dcc.Download(id='download-zip'),
     html.Div(id='analysis-results'),
 ])
 
@@ -59,6 +60,11 @@ def image_array_to_base64_str(image_array):
     pil_img.save(buff, format="PNG")
     encoded_image = base64.b64encode(buff.getvalue()).decode("utf-8")
     return "data:image/png;base64," + encoded_image
+
+def create_annotated_image(fig):
+    # Figure를 이미지로 변환
+    img_bytes = fig.to_image(format='png')
+    return img_bytes
 
 @app.callback(
     Output('output-image-upload', 'children'),
@@ -152,7 +158,8 @@ def update_bb_size(width, height, fig):
     return fig
 
 @app.callback(
-    Output('analysis-results', 'children'),
+    [Output('analysis-results', 'children'),
+     Output('download-button', 'style')],
     Input('analyze-button', 'n_clicks'),
     State('graph', 'figure'),
     State('upload-image', 'contents')
@@ -160,14 +167,14 @@ def update_bb_size(width, height, fig):
 def analyze_image(n_clicks, fig, contents):
     if n_clicks > 0:
         if contents is None:
-            return html.Div(['이미지를 업로드하세요.'])
+            return [html.Div(['이미지를 업로드하세요.']), {'display': 'none'}]
         image = parse_image(contents)
         img_array = np.array(image.convert('L'))  # 그레이스케일 변환
         shapes = []
         if 'shapes' in fig['layout']:
             shapes = fig['layout']['shapes']
         else:
-            return html.Div(['관심 영역을 지정하세요.'])
+            return [html.Div(['관심 영역을 지정하세요.']), {'display': 'none'}]
         results = []
         for i, shape in enumerate(shapes):
             # shape 좌표 추출
@@ -203,7 +210,7 @@ def analyze_image(n_clicks, fig, contents):
                 'Marker 대비 %': 0  # 일단 0으로 초기화
             })
         if len(results) == 0:
-            return html.Div(['관심 영역을 지정하세요.'])
+            return [html.Div(['관심 영역을 지정하세요.']), {'display': 'none'}]
         df = pd.DataFrame(results)
         # 마커 대비 % 계산
         marker_intden = df.loc[0, 'IntDen']
@@ -220,8 +227,35 @@ def analyze_image(n_clicks, fig, contents):
         # 그래프
         graph_fig = px.bar(df, x='피크', y='IntDen', title='IntDen 값 그래프')
         graph = dcc.Graph(figure=graph_fig)
-        return [table, graph]
-    return ''
+        return [[table, graph], {'display': 'inline-block'}]
+    return ['', {'display': 'none'}]
+
+@app.callback(
+    Output('download-zip', 'data'),
+    Input('download-button', 'n_clicks'),
+    State('graph', 'figure'),
+    State('analysis-results', 'children'),
+    prevent_initial_call=True
+)
+def download_results(n_clicks, fig, analysis_children):
+    if n_clicks > 0:
+        # 이미지 저장
+        annotated_image_bytes = fig.to_image(format='png')
+        # 테이블 저장
+        table_fig = analysis_children[0]['props']['figure']
+        table_bytes = table_fig.to_image(format='png')
+        # 그래프 저장
+        graph_fig = analysis_children[1]['props']['figure']
+        graph_bytes = graph_fig.to_image(format='png')
+        # ZIP 파일 생성
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w') as zip_file:
+            zip_file.writestr('annotated_image.png', annotated_image_bytes)
+            zip_file.writestr('result_table.png', table_bytes)
+            zip_file.writestr('intden_graph.png', graph_bytes)
+        zip_buffer.seek(0)
+        return dcc.send_bytes(zip_buffer.getvalue(), f'results_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}.zip')
+    return None
 
 # Dash 앱 실행 코드 주석 처리
 # if __name__ == '__main__':
