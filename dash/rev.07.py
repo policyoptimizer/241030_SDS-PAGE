@@ -1,3 +1,6 @@
+# 특정 영역에 대해서만 진행하는 것으로 수정
+# 다시 시작
+
 import dash
 from dash import html, dcc, Output, Input, State
 import dash_canvas
@@ -46,41 +49,24 @@ app.layout = html.Div([
 
 @app.callback(
     Output('output-image-upload', 'children'),
-    Input('upload-image', 'contents'),
-    State('upload-image', 'filename')
+    Input('upload-image', 'contents')
 )
-def update_output(contents, filename):
+def update_output(contents):
     if contents is not None:
         img = parse_contents(contents)
         canvas_width = 800
         canvas_height = int(img.shape[0] * (canvas_width / img.shape[1]))
-        return html.Div([
-            DashCanvas(
-                id='canvas',
-                width=canvas_width,
-                height=canvas_height,
-                image_content=contents,
-                lineWidth=2,
-                goButtonTitle='BB 추가',
-                tool='rectangle',
-                hide_buttons=['pencil', 'line', 'circle', 'redo', 'undo']
-            ),
-            html.Button('BB 삭제', id='delete-bb', n_clicks=0)
-        ])
+        return DashCanvas(
+            id='canvas',
+            width=canvas_width,
+            height=canvas_height,
+            image_content=contents,
+            lineWidth=2,
+            goButtonTitle='BB 추가',
+            hide_buttons=['pencil', 'zoom', 'pan', 'line', 'redo', 'undo']
+        )
     else:
         return html.Div(['이미지가 업로드되지 않았습니다.'])
-
-# BB 삭제 기능을 위한 콜백
-@app.callback(
-    Output('canvas', 'json_data'),
-    Input('delete-bb', 'n_clicks'),
-    State('canvas', 'json_data'),
-    prevent_initial_call=True
-)
-def delete_bb(n_clicks, json_data):
-    if n_clicks > 0 and json_data:
-        json_data['objects'] = json_data['objects'][:-1]  # 마지막 BB 삭제
-    return json_data
 
 @app.callback(
     Output('analysis-results', 'children'),
@@ -89,31 +75,20 @@ def delete_bb(n_clicks, json_data):
     State('upload-image', 'contents')
 )
 def analyze(n_clicks, json_data, contents):
-    if n_clicks > 0:
-        if json_data is None or 'objects' not in json_data or len(json_data['objects']) == 0:
-            return html.Div(['BB가 지정되지 않았습니다.'])
-        if contents is None:
-            return html.Div(['이미지가 업로드되지 않았습니다.'])
+    if n_clicks > 0 and json_data and contents:
         img = parse_contents(contents)
         df_list = []
         bb_width = None
         bb_height = None
         for i, shape in enumerate(json_data['objects']):
             if shape['type'] == 'rect':
-                if bb_width is None and bb_height is None:
+                if i == 0:
                     bb_width = int(shape['width'])
                     bb_height = int(shape['height'])
-                else:
-                    # 모든 BB의 크기를 첫 번째 BB와 동일하게 설정
-                    shape['width'] = bb_width
-                    shape['height'] = bb_height
                 left = int(shape['left'])
                 top = int(shape['top'])
                 width = bb_width
                 height = bb_height
-                # 이미지 범위를 벗어나지 않도록 좌표 조정
-                left = max(0, min(left, img.shape[1] - width))
-                top = max(0, min(top, img.shape[0] - height))
                 roi = img[top:top+height, left:left+width]
                 area = width * height
                 mean = np.mean(roi)
@@ -130,8 +105,6 @@ def analyze(n_clicks, json_data, contents):
                     'IntDen': intden,
                     'RawIntDen': rawintden
                 })
-        if len(df_list) == 0:
-            return html.Div(['BB가 지정되지 않았습니다.'])
         df = pd.DataFrame(df_list)
         # 마커 대비 % 계산
         marker_intden = df.loc[0, 'IntDen']
