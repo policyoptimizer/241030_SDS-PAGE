@@ -1,5 +1,6 @@
 # 임계값 1~9 단계로 조정
 # crop 기능 제외
+# 이걸로 메일 중간 공유함
 
 import dash
 from dash import html, dcc, Input, Output, State
