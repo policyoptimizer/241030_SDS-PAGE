@@ -1,5 +1,4 @@
 # 밝기 조절, 대비 조절 슬라이더 추가함
-# 밝기 최대, 대비 최소, 이렇게 설정하면 유리함
 
 import dash
 from dash import html, dcc, Input, Output, State
